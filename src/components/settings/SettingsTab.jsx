@@ -36,6 +36,8 @@ export default function SettingsTab() {
   const currentUser = useAppStore((s) => s.currentUser);
   const signInWithGoogle = useAppStore((s) => s.signInWithGoogle);
   const signOut = useAppStore((s) => s.signOut);
+  const syncStatus = useAppStore((s) => s.syncStatus);
+  const syncCloud = useAppStore((s) => s.syncCloud);
   const [tagEditMode, setTagEditMode] = useState(false);
 
   const trackedTags = appState?.trackedTags ?? [];
@@ -121,9 +123,9 @@ export default function SettingsTab() {
                 <span className="text-caption text-muted font-semibold w-8 flex-shrink-0">{fav.slot}</span>
                 <span className="flex-1 text-body text-ink truncate">{fav.name || fav.title || fav.slot}</span>
                 <button
-                  className="text-coral opacity-70 active:opacity-100"
-                  onClick={() => { removeFavorite(fav.id); showToast('즐겨찾기에서 삭제했어요'); }}
-                  aria-label="삭제"
+                  className="w-11 h-11 flex-shrink-0 grid place-items-center text-coral opacity-70 active:opacity-100"
+                  onClick={() => { if (removeFavorite(fav.id)) showToast('즐겨찾기에서 삭제했어요'); }}
+                  aria-label={`${fav.name || fav.title || fav.slot} 즐겨찾기 삭제`}
                 >
                   <TrashIcon />
                 </button>
@@ -147,7 +149,7 @@ export default function SettingsTab() {
               value={hourStr}
               onChange={handleHourChange}
               className="text-caption font-semibold text-primary bg-transparent outline-none"
-              aria-label="컨디션 알림 시작 시간"
+              aria-label="하루 시작 시간"
             />
           </div>
           <div className="px-4 py-3 text-caption text-muted">
@@ -182,6 +184,12 @@ export default function SettingsTab() {
             </button>
           )}
         </div>
+        {currentUser && !currentUser.isAnonymous && (
+          <div className="flex items-center justify-between gap-2 mt-2 text-caption text-muted" role="status">
+            <span>{({ idle: '클라우드 저장 대기 중', pending: '기기에 저장했어요 · 클라우드 저장 대기 중', syncing: '기록·사진을 동기화하고 있어요', synced: '기록·사진 동기화 완료', error: '동기화하지 못했어요 · 연결과 저장 공간을 확인해주세요' })[syncStatus]}</span>
+            {syncStatus === 'error' && <button type="button" onClick={syncCloud} className="flex-shrink-0 min-h-tap font-semibold text-primary">다시 시도</button>}
+          </div>
+        )}
       </div>
 
     </div>

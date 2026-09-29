@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
-import { mealsForWeekOffset, recentMeals, countTags, getStreakDays } from '../../utils/meal';
+import { mealsForWeekOffset, countTags, getStreakDays } from '../../utils/meal';
 import { weekDateKeysByOffset, formatWeekLabel, weekTitle, formatHistoryDate } from '../../utils/date';
 import { flowInsight, getWeekHighlights } from '../../utils/insights';
 import { tagById } from '../../utils/meal';
@@ -32,16 +32,19 @@ function ChevronRight() {
 export default function FlowTab() {
   const appState = useAppStore((s) => s.appState);
   const dayStartHour = useAppStore((s) => s.appState?.conditionPromptHour ?? 0);
+  const today = useAppStore((s) => s.today);
   const [weekOffset, setWeekOffset] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const meals = appState?.meals ?? [];
+  const title = weekTitle(weekOffset);
+  const trackedTags = appState?.trackedTags ?? [];
   const weekMeals = mealsForWeekOffset(meals, weekOffset, dayStartHour);
-  const monthMeals = recentMeals(meals, 30);
-  const weekCounts = countTags(weekMeals);
+  const foodMeals = weekMeals.filter((m) => m.slot !== '음료');
+  const weekCounts = Object.fromEntries(Object.entries(countTags(weekMeals)).filter(([id]) => trackedTags.includes(id)));
   const streak = getStreakDays(meals, dayStartHour);
-  const highlights = getWeekHighlights(weekMeals, weekCounts, streak);
-  const insightText = flowInsight(weekMeals, monthMeals, weekCounts, streak);
+  const highlights = getWeekHighlights(weekMeals, weekCounts, streak, title);
+  const insightText = flowInsight(weekMeals, weekCounts, streak, title, trackedTags);
 
   const topTags = Object.entries(weekCounts)
     .map(([id, count]) => ({ ...tagById(id), count }))
@@ -56,7 +59,6 @@ export default function FlowTab() {
     .filter(({ note }) => note?.mood);
 
   const isCurrentWeek = weekOffset === 0;
-  const title = weekTitle(weekOffset);
   const weekLabel = formatWeekLabel(weekOffset, dayStartHour);
 
   const touchStart = useRef(null);
@@ -80,18 +82,19 @@ export default function FlowTab() {
   }
 
   const metrics = [
-    { value: weekMeals.length, label: '기록한 끼니', positive: true },
-    { value: weekCounts.veg || 0, label: '채소를 챙긴 끼니', positive: true },
-    { value: weekMeals.filter((m) => m.carbs === '많이').length, label: '탄수화물 많음', positive: false },
-    { value: weekMeals.filter((m) => m.speed === '20분 이내').length, label: '빠른 식사', positive: false },
-    { value: weekMeals.filter((m) => m.fullness === '적당함').length, label: '적당한 포만감', positive: true },
-  ];
+    { value: foodMeals.length, label: '기록한 끼니', positive: true },
+    { value: weekCounts.veg || 0, label: '채소를 챙긴 끼니', positive: true, tag: 'veg' },
+    { value: foodMeals.filter((m) => m.carbs === '많이').length, label: '탄수화물 많음', positive: false },
+    { value: foodMeals.filter((m) => m.speed === '20분 이내').length, label: '빠른 식사', positive: false },
+    { value: foodMeals.filter((m) => m.fullness === '적당함').length, label: '적당한 포만감', positive: true },
+  ].filter((metric) => !metric.tag || trackedTags.includes(metric.tag));
 
   return (
     <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* Week Nav */}
       <div className="relative flex items-center justify-between mt-5 mb-1">
         <button
+          aria-label="이전 주"
           onClick={() => setWeekOffset((o) => o - 1)}
           className="flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-ink"
         >
@@ -102,6 +105,7 @@ export default function FlowTab() {
           <p className="text-[11px] text-muted">{weekLabel}</p>
         </button>
         <button
+          aria-label="다음 주"
           onClick={() => setWeekOffset((o) => o + 1)}
           disabled={isCurrentWeek}
           className="flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-ink disabled:opacity-30"
@@ -121,13 +125,7 @@ export default function FlowTab() {
       {/* Insight */}
       <section className="mt-4">
         <div className="p-4 rounded-lg bg-primary-soft text-primary-dark">
-          <div className="mb-2">
-            <span className="text-[11px] font-bold bg-primary text-bg px-2 py-0.5 rounded-full">{title} 패턴</span>
-          </div>
-          <h3 className="font-bold text-body mb-1">
-            {weekMeals.length ? `${title} 기록이에요` : '기록이 없어요'}
-          </h3>
-          <p className="text-caption leading-relaxed">{insightText}</p>
+          <p className="text-13 leading-relaxed">{insightText}</p>
         </div>
       </section>
 
@@ -167,7 +165,7 @@ export default function FlowTab() {
             ))}
           </div>
         ) : (
-          <p className="text-caption text-muted">기록이 쌓이면 패턴이 보여요.</p>
+          <p className="text-caption text-muted">{trackedTags.length ? '선택한 태그의 기록이 아직 없어요.' : '설정에서 요약에 표시할 태그를 선택해주세요.'}</p>
         )}
       </section>
 
@@ -201,7 +199,7 @@ export default function FlowTab() {
                 <div key={dateKey} className={`flex items-center gap-3 px-4 py-3 rounded-lg ${moodStyles[note.mood] ?? ''}`}>
                   <span className="text-xl leading-none">{cfg.face}</span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-caption text-muted">{formatHistoryDate(dateKey)}</span>
+                    <span className="text-caption text-muted">{formatHistoryDate(dateKey, today)}</span>
                     {note.memo && <p className="text-caption font-semibold truncate">{note.memo}</p>}
                   </div>
                   <span className="text-caption font-bold flex-shrink-0">{cfg.label}</span>

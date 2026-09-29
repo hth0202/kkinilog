@@ -10,7 +10,7 @@ export const DEFAULT_TAGS = [
   { id: 'fried',       label: '기름짐',     group: 'watch', category: '줄이기',    hideInSlots: ['음료'] },
   { id: 'spicy',       label: '매움',       group: 'watch', category: '줄이기',    hideInSlots: ['음료'] },
   { id: 'sodium',      label: '나트륨(염분)',group: 'watch', category: '줄이기',    hideInSlots: ['음료'] },
-  { id: 'alcohol',     label: '술',          group: 'watch', category: '줄이기',    hideInSlots: ['음료'] },
+  { id: 'alcohol',     label: '술',          group: 'watch', category: '줄이기' },
   { id: 'late',        label: '야식',       group: 'watch', category: '식사 상황', onlySlots: ['저녁', '간식'] },
   { id: 'delivery',    label: '배달/외식',  group: 'watch', category: '식사 상황', hideInSlots: ['음료'], exclusiveGroup: 'source' },
   { id: 'veg',         label: '채소',       group: 'care',  category: '챙기기',    hideInSlots: ['음료'] },
@@ -32,8 +32,9 @@ export const MAX_PHOTOS_PER_MEAL = 5;
 export const MEAL_TITLE_LIMIT = 30;
 export const MEAL_MEMO_LIMIT = 100;
 export const CONDITION_NOTE_LIMIT = 30;
-export const MAX_PHOTO_EDGE = 1280;
-export const PHOTO_QUALITY = 0.82;
+// 폰 전체 화면에서 선명하게 보이는 정도로 한 벌만 만들어 기기·클라우드에 같이 쓴다.
+export const MAX_PHOTO_EDGE = 1080;
+export const PHOTO_QUALITY = 0.75;
 export const SETTINGS_VERSION = 7;
 
 export const FULLNESS_OPTIONS = [
@@ -45,7 +46,7 @@ export const FULLNESS_OPTIONS = [
 ];
 
 export const CARB_OPTIONS = ['없음', '적게', '보통', '많이'];
-export const SPEED_OPTIONS = ['모르겠음', '20분 이내', '30-50분 이내', '1시간 이상'];
+export const SPEED_OPTIONS = ['모르겠음', '20분 이내', '20분 초과~1시간 미만', '1시간 이상'];
 
 export const CONDITION_MOODS = [
   { id: 'good', face: '😊', label: '좋음' },

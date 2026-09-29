@@ -1,15 +1,17 @@
 import { useState, useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
-import { usePhotoDB } from '../../hooks/usePhotoDB';
+import { usePhotoSession } from '../../hooks/usePhotoSession';
+import { putPhoto } from '../../utils/photoDB';
+import { compressImage, photoErrorMessage } from '../../utils/photo';
 import { useHistoryBack } from '../../hooks/useHistoryBack';
+import { useDialog } from '../../hooks/useDialog';
 import {
   MEAL_SLOTS, FULLNESS_OPTIONS, CARB_OPTIONS, SPEED_OPTIONS,
   MEAL_TITLE_LIMIT, MEAL_MEMO_LIMIT, MAX_PHOTOS_PER_MEAL,
-  MAX_PHOTO_EDGE, PHOTO_QUALITY,
 } from '../../constants';
-import { visibleTagsForSlot, slotIsTaken, applyTagToggle } from '../../utils/meal';
+import { visibleTagsForSlot, slotIsTaken, applyTagToggle, tagsForSlot } from '../../utils/meal';
 import { characterCount, trimMealMemo, trimMealTitle } from '../../utils/text';
-import { todayKey } from '../../utils/date';
+import { formatHistoryDate } from '../../utils/date';
 import Chip from '../shared/Chip';
 import TimePicker from '../shared/TimePicker';
 
@@ -21,6 +23,7 @@ function Segmented({ options, value, onChange, disabledOptions = [] }) {
           key={opt}
           type="button"
           disabled={disabledOptions.includes(opt)}
+          aria-pressed={value === opt}
           onClick={() => onChange(opt)}
           className={`px-3 py-1.5 rounded-full text-caption font-semibold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
             value === opt
@@ -35,28 +38,10 @@ function Segmented({ options, value, onChange, disabledOptions = [] }) {
   );
 }
 
-async function compressImage(file) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const { naturalWidth: w, naturalHeight: h } = img;
-      const scale = Math.min(1, MAX_PHOTO_EDGE / Math.max(w, h));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(w * scale);
-      canvas.height = Math.round(h * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', PHOTO_QUALITY));
-    };
-    img.src = url;
-  });
-}
-
 function PhotoMenu({ children }) {
   return (
     <div className="absolute right-3 z-10 min-w-24 rounded-[14px] bg-surface overflow-hidden"
-      style={{ bottom: 'calc(12px + 32px + 6px)', boxShadow: '0 8px 24px rgba(25,31,40,0.18), 0 0 0 1px rgba(0,0,0,0.06)' }}>
+      style={{ bottom: 12, maxHeight: 'calc(100% - 24px)', overflowY: 'auto', boxShadow: '0 8px 24px rgba(25,31,40,0.18), 0 0 0 1px rgba(0,0,0,0.06)' }}>
       {children}
     </div>
   );
@@ -67,7 +52,7 @@ function PhotoMenuItem({ onClick, icon, label, danger }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 w-full px-4 py-3 text-left text-caption font-semibold active:bg-surface-ui ${danger ? 'text-coral border-t border-line' : 'text-ink'}`}
+      className={`flex items-center gap-2 w-full px-4 py-2 text-left text-caption font-semibold active:bg-surface-ui ${danger ? 'text-coral border-t border-line' : 'text-ink'}`}
     >
       <span className="text-muted flex-shrink-0">{icon}</span>
       {label}
@@ -106,9 +91,11 @@ export default function MealEditor() {
   const appState = useAppStore((s) => s.appState);
   const showToast = useAppStore((s) => s.showToast);
   const openPhotoViewer = useAppStore((s) => s.openPhotoViewer);
-  const photoDB = usePhotoDB();
+  const photoSession = usePhotoSession();
 
-  useHistoryBack(closeEditor);
+  useHistoryBack(handleClose);
+  const dialogRef = useDialog(handleClose);
+  const today = useAppStore((s) => s.today);
 
   const cameraRef = useRef(null);
   const galleryRef = useRef(null);
@@ -119,6 +106,15 @@ export default function MealEditor() {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const processingRef = useRef(false);
+
+  function handleClose() {
+    if (processingRef.current) { showToast('사진 처리 중이에요. 완료 후 닫아주세요'); return false; }
+    if (JSON.stringify(draft) !== JSON.stringify(editor) && !window.confirm('저장하지 않은 내용이 있어요. 닫으면 사라져요. 닫을까요?')) return false;
+    closeEditor();
+    return true;
+  }
 
   if (!editor || !draft) return null;
 
@@ -130,7 +126,7 @@ export default function MealEditor() {
   const categories = [...new Set(visibleTags.map((t) => t.category))];
 
   function update(field, value) {
-    setDraft((d) => ({ ...d, [field]: value }));
+    setDraft((d) => ({ ...d, [field]: value, ...(field === 'slot' ? { tags: tagsForSlot(d.tags, value) } : {}) }));
   }
 
   function toggleTag(id) {
@@ -138,37 +134,47 @@ export default function MealEditor() {
   }
 
   async function processFiles(files, replace = false) {
-    const toProcess = replace ? files.slice(0, 1) : files.slice(0, MAX_PHOTOS_PER_MEAL - draft.photos.length);
-    const newIds = [];
-    const newUrls = [];
-    for (const file of toProcess) {
-      try {
-        const dataUrl = await compressImage(file);
-        const id = `photo-${crypto.randomUUID()}`;
-        await photoDB.put(id, dataUrl);
-        newIds.push(id);
-        newUrls.push(dataUrl);
-      } catch {
-        showToast('저장 공간이 부족해요. 사진을 더 작은 파일로 바꾸거나 오래된 사진을 지워주세요.');
-        return;
+    if (processingRef.current || !files.length) return;
+    processingRef.current = true;
+    setProcessing(true);
+    try {
+      const toProcess = replace ? files.slice(0, 1) : files.slice(0, MAX_PHOTOS_PER_MEAL - draft.photos.length);
+      if (files.length > toProcess.length) showToast(`사진은 최대 ${MAX_PHOTOS_PER_MEAL}장까지예요. ${toProcess.length}장만 추가해요`);
+      const newIds = [];
+      const newUrls = [];
+      for (const file of toProcess) {
+        try {
+          const dataUrl = await compressImage(file);
+          const id = `photo-${crypto.randomUUID()}`;
+          await putPhoto(id, dataUrl);
+          if (!photoSession.markAdded([id])) return;
+          newIds.push(id);
+          newUrls.push(dataUrl);
+        } catch (err) {
+          showToast(photoErrorMessage(err));
+          break;
+        }
       }
-    }
-    if (replace) {
-      const oldId = draft.photos[photoIdx];
-      if (oldId) await photoDB.del(oldId);
-      setDraft((d) => ({ ...d, photos: d.photos.map((p, i) => i === photoIdx ? newIds[0] : p) }));
-      setPhotoUrls((prev) => prev.map((u, i) => i === photoIdx ? newUrls[0] : u));
-    } else {
-      setDraft((d) => ({ ...d, photos: [...d.photos, ...newIds] }));
-      setPhotoUrls((prev) => [...prev, ...newUrls]);
-      setPhotoIdx(draft.photos.length);
+      if (!newIds.length) return;
+      if (replace) {
+        photoSession.markRemoved(draft.photos[photoIdx]);
+        setDraft((d) => ({ ...d, photos: d.photos.map((p, i) => i === photoIdx ? newIds[0] : p) }));
+        setPhotoUrls((prev) => prev.map((u, i) => i === photoIdx ? newUrls[0] : u));
+      } else {
+        setDraft((d) => ({ ...d, photos: [...d.photos, ...newIds] }));
+        setPhotoUrls((prev) => [...prev, ...newUrls]);
+        setPhotoIdx(draft.photos.length);
+      }
+    } finally {
+      processingRef.current = false;
+      setProcessing(false);
     }
   }
 
-  async function handlePhotoRemove() {
+  function handlePhotoRemove() {
+    if (processingRef.current) return;
     if (!window.confirm('이 사진을 삭제할까요?')) return;
-    const id = draft.photos[photoIdx];
-    await photoDB.del(id);
+    photoSession.markRemoved(draft.photos[photoIdx]);
     setDraft((d) => ({ ...d, photos: d.photos.filter((_, i) => i !== photoIdx) }));
     setPhotoUrls((prev) => prev.filter((_, i) => i !== photoIdx));
     setPhotoIdx((i) => Math.max(0, i - 1));
@@ -176,16 +182,19 @@ export default function MealEditor() {
   }
 
   async function handleSave() {
+    if (processingRef.current || saving) return;
     if (!draft.title.trim()) { showToast('먹은 것을 입력해주세요'); return; }
     setSaving(true);
-    addMeal({
+    const saved = addMeal({
       ...draft,
       id: draft.id || crypto.randomUUID(),
       title: trimMealTitle(draft.title),
       memo: trimMealMemo(draft.memo),
-      date: draft.date || todayKey(),
+      date: draft.date,
       createdAt: draft.createdAt || Date.now(),
     });
+    if (!saved) { setSaving(false); return; }
+    photoSession.commit();
     closeEditor();
     showToast('기록했어요');
     setSaving(false);
@@ -195,7 +204,7 @@ export default function MealEditor() {
     setDraft((d) => ({
       ...d,
       title: fav.title,
-      tags: [...fav.tags],
+      tags: tagsForSlot(fav.tags, d.slot),
       fullness: fav.fullness,
       carbs: fav.carbs,
       speed: fav.speed,
@@ -208,14 +217,14 @@ export default function MealEditor() {
   const canAddMore = draft.photos.length < MAX_PHOTOS_PER_MEAL;
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-surface-warm" onClick={() => menuOpen && setMenuOpen(false)}>
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="끼니 기록" tabIndex={-1} className="fixed inset-0 z-40 flex flex-col bg-surface-warm" onClick={() => menuOpen && setMenuOpen(false)}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 safe-top pb-3 bg-surface-warm/94 backdrop-blur border-b border-line/90 sticky top-0 z-10">
         <div>
           <h2 className="font-bold text-body">끼니 기록</h2>
-          <p className="text-caption text-muted">생각나는 만큼만 적어 주세요</p>
+          <p className="text-caption text-muted">{draft.date ? formatHistoryDate(draft.date, today) : '날짜를 선택해주세요'} · 생각나는 만큼만 적어 주세요</p>
         </div>
-        <button type="button" onClick={closeEditor} className="w-10 h-10 grid place-items-center text-soft">
+        <button type="button" onClick={handleClose} className="w-10 h-10 grid place-items-center text-soft" aria-label="닫기">
           <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
@@ -224,6 +233,10 @@ export default function MealEditor() {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <label className="flex items-center justify-between text-caption font-bold text-muted">
+          기록 날짜
+          <input type="date" aria-label="기록 날짜" max={today} value={draft.date} onChange={(e) => update('date', e.target.value)} className="bg-transparent text-ink" />
+        </label>
         {/* Favorites */}
         {favorites.length > 0 && (
           <div>
@@ -311,10 +324,12 @@ export default function MealEditor() {
               )}
             </>
           )}
-          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => processFiles(Array.from(e.target.files || []))} />
-          <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => processFiles(Array.from(e.target.files || []))} />
-          <input ref={replaceRef} type="file" accept="image/*" className="hidden" onChange={(e) => processFiles(Array.from(e.target.files || []), true)} />
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ''; processFiles(files); }} />
+          <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ''; processFiles(files); }} />
+          <input ref={replaceRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ''; processFiles(files, true); }} />
         </div>
+
+        <p className="text-[11px] text-soft">사진 {draft.photos.length}/{MAX_PHOTOS_PER_MEAL}장{processing ? ' · 처리 중이에요' : ''}</p>
 
         {/* Slot */}
         <div className="bg-surface rounded-lg p-4 shadow-float">
@@ -322,7 +337,7 @@ export default function MealEditor() {
           <Segmented
             options={MEAL_SLOTS}
             value={draft.slot}
-            disabledOptions={takenSlots.filter((s) => s !== draft.slot)}
+            disabledOptions={takenSlots}
             onChange={(v) => update('slot', v)}
           />
         </div>
@@ -407,10 +422,10 @@ export default function MealEditor() {
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || processing}
           className="w-full h-12 rounded-xl bg-primary text-bg font-bold text-body shadow-primary disabled:opacity-60"
         >
-          저장
+          {processing ? '사진 처리 중…' : '저장'}
         </button>
       </div>
     </div>

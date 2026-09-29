@@ -1,17 +1,16 @@
 import { useAppStore } from '../../store/appStore';
 import { recommendedSlot, availableSlot } from '../../utils/meal';
-import { effectiveDateKey } from '../../utils/date';
 
 export default function BottomNav() {
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const openEditor = useAppStore((s) => s.openEditor);
   const appState = useAppStore((s) => s.appState);
-  const viewedDate = useAppStore((s) => s.viewedDate);
+  const homeDate = useAppStore((s) => s.viewedDate);
 
   const meals = appState?.meals ?? [];
-  const dayStartHour = appState?.conditionPromptHour ?? 0;
-  const effectiveToday = effectiveDateKey(dayStartHour);
+  const effectiveToday = useAppStore((s) => s.today);
+  const viewedDate = activeTab === 'today' ? homeDate : effectiveToday;
   const preferred = recommendedSlot(meals, viewedDate);
   const canAdd = !!availableSlot(meals, preferred, null, viewedDate);
   const isToday = viewedDate === effectiveToday;

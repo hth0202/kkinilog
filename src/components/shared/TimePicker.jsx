@@ -5,7 +5,7 @@ const VISIBLE = 3;
 const COL_H = ITEM_H * VISIBLE; // 132px
 const PAD = Math.floor(VISIBLE / 2); // items above/below center
 
-function WheelColumn({ items, value, getLabel, onChange, width }) {
+function WheelColumn({ items, value, getLabel, onChange, width, label }) {
   const scrollRef = useRef(null);
   const isUserScrolling = useRef(false);
   const debounceRef = useRef(null);
@@ -54,6 +54,21 @@ function WheelColumn({ items, value, getLabel, onChange, width }) {
       {/* Scroll container — fills wrapper exactly */}
       <div
         ref={scrollRef}
+        role="spinbutton"
+        tabIndex={0}
+        aria-label={`${label} · 방향키로 선택`}
+        aria-valuemin={1}
+        aria-valuemax={items.length}
+        aria-valuenow={idx + 1}
+        aria-valuetext={String(getLabel ? getLabel(value) : value)}
+        onKeyDown={(e) => {
+          if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
+          e.preventDefault();
+          const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : idx + (e.key === 'ArrowUp' ? -1 : 1);
+          isUserScrolling.current = false;
+          clearTimeout(debounceRef.current);
+          onChange(items[Math.max(0, Math.min(items.length - 1, next))]);
+        }}
         onScroll={onScroll}
         style={{
           position: 'absolute', inset: 0,
@@ -98,11 +113,11 @@ function WheelColumn({ items, value, getLabel, onChange, width }) {
 
 const PERIODS = ['오전', '오후'];
 const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-const MINUTES = [0, 30];
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
 function parseTime(t) {
   const [h, m] = (t || '12:00').split(':').map(Number);
-  return { period: h < 12 ? '오전' : '오후', hour: h % 12 || 12, minute: m === 30 ? 30 : 0 };
+  return { period: h < 12 ? '오전' : '오후', hour: h % 12 || 12, minute: m };
 }
 
 function toValue({ period, hour, minute }) {
@@ -117,10 +132,7 @@ export default function TimePicker({ value, onChange }) {
         type="button"
         onClick={() => {
           const now = new Date();
-          const min = now.getMinutes();
-          const m = min >= 15 && min < 45 ? 30 : 0;
-          const h = m === 0 && min >= 45 ? (now.getHours() + 1) % 24 : now.getHours();
-          onChange(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+          onChange(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
         }}
         className="text-caption font-semibold text-primary"
       >
@@ -136,15 +148,18 @@ export default function TimePicker({ value, onChange }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: COL_H }}>
         <WheelColumn
           items={PERIODS} value={period} width={52}
+          label="오전·오후"
           onChange={(p) => onChange(toValue({ period: p, hour, minute }))}
         />
         <WheelColumn
           items={HOURS} value={hour} width={40}
+          label="시"
           onChange={(h) => onChange(toValue({ period, hour: h, minute }))}
         />
         <span style={{ fontSize: 18, fontWeight: 700, color: '#8a9984', flexShrink: 0, alignSelf: 'center' }}>:</span>
         <WheelColumn
           items={MINUTES} value={minute} width={44}
+          label="분"
           getLabel={(m) => String(m).padStart(2, '0')}
           onChange={(m) => onChange(toValue({ period, hour, minute: m }))}
         />

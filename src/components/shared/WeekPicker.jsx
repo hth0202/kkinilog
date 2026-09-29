@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 import {
   effectiveDateKey, formatDateKey, formatMonthLabel, addMonths, monthKeyFor,
-  daysInMonth, weekOffsetOf, weekStartByOffset, weekEndByOffset,
+  daysInMonth, weekOffsetOf, weekStartByOffset, weekEndByOffset, formatHomeDate,
 } from '../../utils/date';
 
 export default function WeekPicker({ weekOffset, onChange, onClose }) {
@@ -43,6 +43,7 @@ export default function WeekPicker({ weekOffset, onChange, onClose }) {
               onClick={() => { onChange(0); onClose(); }}
             >오늘</button>
             <button
+              aria-label="이전 달"
               className="w-8 h-8 grid place-items-center rounded-sm text-title font-bold text-muted"
               onClick={() => setPickerMonth(addMonths(pickerMonth, -1))}
             >‹</button>
@@ -50,6 +51,7 @@ export default function WeekPicker({ weekOffset, onChange, onClose }) {
               className="w-8 h-8 grid place-items-center rounded-sm text-title font-bold text-muted disabled:opacity-35"
               disabled={pickerMonth >= monthKeyFor(today)}
               onClick={() => setPickerMonth(addMonths(pickerMonth, 1))}
+              aria-label="다음 달"
             >›</button>
           </div>
         </div>
@@ -96,6 +98,8 @@ export default function WeekPicker({ weekOffset, onChange, onClose }) {
                   `} />
                 )}
                 <button
+                  aria-label={formatHomeDate(key)}
+                  aria-pressed={isInWeek}
                   disabled={isFuture}
                   onClick={() => handleDayClick(key)}
                   className={`relative z-10 w-8 h-8 grid place-items-center text-caption font-[650] disabled:cursor-default

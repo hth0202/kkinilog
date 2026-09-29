@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import { useAppStore } from './store/appStore';
 
@@ -41,7 +41,7 @@ function SearchIcon() {
 
 export default function App() {
   const {
-    appState, initState, syncFromCloud,
+    appState, initState, setUser, handleRedirectResult,
     activeTab, settingsOpen, openSettings, closeSettings,
     editor, mealDetailId, conditionSheet, photoViewer,
     openConditionSheet, shouldShowConditionPrompt,
@@ -55,14 +55,35 @@ export default function App() {
 
   // Firebase Auth
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        await syncFromCloud(user);
-      } else {
-        try { await signInAnonymously(auth); } catch { /* offline */ }
-      }
-    });
+    handleRedirectResult();
+    // 로그인하지 않으면 기기에만 저장하고, 구글 로그인 시 기기 기록을 계정에 합쳐 올린다.
+    const unsub = onAuthStateChanged(auth, (user) => setUser(user));
     return unsub;
+  }, []);
+
+  // 백그라운드로 갈 때 대기 중인 저장을 바로 올리고, 돌아오면 날짜·클라우드를 새로 맞춘다.
+  useEffect(() => {
+    const store = useAppStore.getState;
+    function onVisibility() {
+      if (document.visibilityState === 'hidden') {
+        store().flushCloud();
+        return;
+      }
+      store().refreshToday();
+      store().syncCloud();
+      if (!store().conditionSheet && store().shouldShowConditionPrompt()) {
+        store().openConditionSheet(null);
+      }
+    }
+    const onOnline = () => store().syncCloud();
+    const timer = setInterval(() => store().refreshToday(), 60_000);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
+    };
   }, []);
 
   // Condition prompt
@@ -74,27 +95,16 @@ export default function App() {
     }
   }, [appState?.meals?.length]);
 
-  // Visibility change → re-check condition
-  useEffect(() => {
-    function onVisible() {
-      if (!useAppStore.getState().conditionSheet && useAppStore.getState().shouldShowConditionPrompt()) {
-        useAppStore.getState().openConditionSheet(null);
-      }
-    }
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
-
   if (!appState) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-bg">
-        <img src="/assets/kkinilog-rabbit-icon-512.png" alt="" className="w-16 h-16 opacity-50 animate-pulse" />
+      <div className="app-shell min-h-dvh flex items-center justify-center bg-surface-warm">
+        <img src={`${import.meta.env.BASE_URL}assets/kkinilog-rabbit-icon-512.png`} alt="" className="w-16 h-16 opacity-50 animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-dvh bg-bg text-ink font-sans text-body">
+    <div className={`app-shell min-h-dvh text-ink font-sans text-body ${settingsOpen ? 'bg-bg' : 'bg-surface-warm'}`}>
       {settingsOpen ? (
         /* Settings */
         <main className="w-full min-h-dvh px-4 pb-7">
@@ -110,7 +120,7 @@ export default function App() {
       ) : (
         /* Main */
         <main className="w-full min-h-dvh px-4 pb-nav">
-          <header className="sticky top-0 z-10 bg-bg flex items-center justify-between gap-3 mb-3 safe-top pb-3">
+          <header className="sticky top-0 z-10 bg-surface-warm flex items-center justify-between gap-3 mb-3 safe-top pb-3">
             <h1 className="text-[22px] font-bold tracking-[-0.04em] text-ink leading-none">끼니록</h1>
             <div className="flex items-center gap-0.5">
               <button
