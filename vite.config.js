@@ -3,19 +3,19 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: '/eat/',
+  base: '/kkinilog/',
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['assets/*.png', 'icon.svg'],
       manifest: {
-        id: '/eat/',
+        id: '/kkinilog/',
         name: '끼니록',
         short_name: '끼니록',
         description: '한 끼씩 남기고, 내 식습관 패턴을 살펴보는 기록 앱',
-        start_url: '/eat/',
-        scope: '/eat/',
+        start_url: '/kkinilog/',
+        scope: '/kkinilog/',
         display: 'standalone',
         background_color: '#ffffff',
         theme_color: '#ffffff',
