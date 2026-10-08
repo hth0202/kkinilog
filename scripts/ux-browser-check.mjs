@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const screenshots = await mkdtemp(join(tmpdir(), 'kkinilog-ux-'));
-const appUrl = process.env.UX_APP_URL || 'http://127.0.0.1:4180/eat/';
+const appUrl = process.env.UX_APP_URL || 'http://127.0.0.1:4180/kkinilog/';
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Seoul', locale: 'ko-KR' });
 await context.route(/https:\/\/.*(googleapis\.com|firebaseapp\.com|gstatic\.com).*/, r => r.abort());
@@ -120,7 +120,7 @@ await check('slow photo blocks save and preserves processed photo', async () => 
 });
 await check('320px photo menu stays in hero and search has no overflow', async () => {
   await seed(); await page.setViewportSize({ width: 320, height: 568 });
-  await page.evaluate(async () => { const { putPhoto } = await import('/eat/src/utils/photoDB.js'); await putPhoto('existing', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jh7kAAAAASUVORK5CYII='); const data = JSON.parse(localStorage.getItem('kkinilog-state-v1-react')); data.meals[0].photos = ['existing']; localStorage.setItem('kkinilog-state-v1-react', JSON.stringify(data)); });
+  await page.evaluate(async () => { const { putPhoto } = await import('/kkinilog/src/utils/photoDB.js'); await putPhoto('existing', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jh7kAAAAASUVORK5CYII='); const data = JSON.parse(localStorage.getItem('kkinilog-state-v1-react')); data.meals[0].photos = ['existing']; localStorage.setItem('kkinilog-state-v1-react', JSON.stringify(data)); });
   await page.reload(); await openDetail(); await page.getByRole('button', { name: '사진 편집', exact: true }).click();
   const add = page.getByRole('button', { name: '추가', exact: true }); await add.waitFor(); const box = await add.boundingBox(); const menu = await add.locator('..').boundingBox();
   assert.ok(box.y >= menu.y && box.y + box.height <= menu.y + menu.height);
@@ -149,11 +149,11 @@ await check('photo limit announces count and attaches five', async () => {
   await page.getByRole('button', { name: '저장', exact: true }).click(); assert.equal((await state()).meals.at(-1).photos.length, 5);
 });
 await check('canceling photo removal retains original file', async () => {
-  await seed(); await page.evaluate(async () => { const { putPhoto } = await import('/eat/src/utils/photoDB.js'); await putPhoto('keep-photo', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jh7kAAAAASUVORK5CYII='); const data = JSON.parse(localStorage.getItem('kkinilog-state-v1-react')); data.meals[0].photos = ['keep-photo']; localStorage.setItem('kkinilog-state-v1-react', JSON.stringify(data)); });
+  await seed(); await page.evaluate(async () => { const { putPhoto } = await import('/kkinilog/src/utils/photoDB.js'); await putPhoto('keep-photo', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jh7kAAAAASUVORK5CYII='); const data = JSON.parse(localStorage.getItem('kkinilog-state-v1-react')); data.meals[0].photos = ['keep-photo']; localStorage.setItem('kkinilog-state-v1-react', JSON.stringify(data)); });
   await page.reload(); await openDetail(); await page.getByRole('button', { name: '사진 편집', exact: true }).click();
   acceptConfirm = true; await page.getByRole('button', { name: '삭제', exact: true }).first().click(); await page.getByRole('button', { name: '닫기', exact: true }).click();
   assert.equal((await state()).meals[0].photos.length, 1);
-  assert.ok(await page.evaluate(async () => (await import('/eat/src/utils/photoDB.js')).getPhoto('keep-photo')));
+  assert.ok(await page.evaluate(async () => (await import('/kkinilog/src/utils/photoDB.js')).getPhoto('keep-photo')));
 });
 await check('nested search/detail restores focus, closes only top overlay', async () => {
   await seed(); await page.getByRole('button', { name: '검색', exact: true }).click(); await page.getByRole('textbox').fill('우동');
@@ -164,7 +164,7 @@ await check('nested search/detail restores focus, closes only top overlay', asyn
   assert.equal(await page.evaluate(() => document.body.style.overflow), '');
 });
 await check('desktop and mobile share the same shell, navigation and overlays', async () => {
-  await page.evaluate(async () => { const { putPhoto } = await import('/eat/src/utils/photoDB.js'); await putPhoto('layout-photo', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jh7kAAAAASUVORK5CYII='); });
+  await page.evaluate(async () => { const { putPhoto } = await import('/kkinilog/src/utils/photoDB.js'); await putPhoto('layout-photo', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jh7kAAAAASUVORK5CYII='); });
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 844 }); await seed({ meals: [meal('lunch', { photos: ['layout-photo'] })] });
     const shell = await page.locator('.app-shell').boundingBox();

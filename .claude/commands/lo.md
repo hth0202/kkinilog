@@ -20,7 +20,7 @@ lsof -ti:$PORT | xargs kill -9 2>/dev/null; true
 
 **3. 개발 서버 시작 (백그라운드)**
 ```bash
-cd /Users/taffy/Documents/dev/eat && python3 -m http.server $PORT
+cd /Users/taffy/dev/handot/kkinilog && python3 -m http.server $PORT
 ```
 `run_in_background: true` 로 실행하세요.
 
