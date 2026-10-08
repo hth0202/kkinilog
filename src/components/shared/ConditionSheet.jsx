@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/appStore';
 import { useHistoryBack } from '../../hooks/useHistoryBack';
 import { CONDITION_MOODS, CONDITION_NOTE_LIMIT } from '../../constants';
 import BottomSheet from './BottomSheet';
+import { formatHistoryDate } from '../../utils/date';
 
 export default function ConditionSheet() {
   const conditionSheet = useAppStore((s) => s.conditionSheet);
@@ -11,13 +12,15 @@ export default function ConditionSheet() {
   const saveCondition = useAppStore((s) => s.saveCondition);
   const skipCondition = useAppStore((s) => s.skipCondition);
   const appState = useAppStore((s) => s.appState);
-
-  useHistoryBack(closeConditionSheet);
+  const today = useAppStore((s) => s.today);
 
   const dateKey = conditionSheet?.date;
   const selectedMood = conditionSheet?.selectedMood ?? null;
   const existing = appState?.dailyNotes?.[dateKey];
   const isEdit = !!existing?.mood;
+
+  // 처음 묻는 시트를 뒤로가기로 닫으면 건너뛰기로 처리해 다시 뜨지 않게 한다.
+  useHistoryBack(isEdit ? closeConditionSheet : skipCondition);
 
   const [memo, setMemo] = useState(existing?.memo ?? '');
 
@@ -25,7 +28,7 @@ export default function ConditionSheet() {
 
   function handleSave() {
     if (!selectedMood) return;
-    saveCondition(dateKey, selectedMood, memo);
+    if (!saveCondition(dateKey, selectedMood, memo)) return;
     closeConditionSheet();
   }
 
@@ -36,9 +39,9 @@ export default function ConditionSheet() {
   };
 
   return (
-    <BottomSheet onClose={isEdit ? closeConditionSheet : undefined}>
+    <BottomSheet onClose={isEdit ? closeConditionSheet : skipCondition}>
       <div className="px-4 pb-2">
-        <p className="text-center font-bold text-body mb-5">오늘 컨디션은요?</p>
+        <p className="text-center font-bold text-body mb-5">{formatHistoryDate(dateKey, today)} 컨디션은요?</p>
 
         <div className="flex justify-center gap-4 mb-5">
           {CONDITION_MOODS.map((cfg) => (
@@ -47,6 +50,7 @@ export default function ConditionSheet() {
               type="button"
               onClick={() => setConditionSheetMood(cfg.id)}
               aria-label={cfg.label}
+              aria-pressed={selectedMood === cfg.id}
               className={`flex flex-col items-center gap-1 px-5 py-3 rounded-xl border-2 transition-all ${
                 selectedMood === cfg.id
                   ? `${moodColors[cfg.id]} border-current scale-105`
@@ -64,6 +68,7 @@ export default function ConditionSheet() {
             className="w-full border border-line rounded-md px-4 py-3 text-caption resize-none bg-transparent text-ink outline-none focus:border-primary h-14 pb-5"
             maxLength={CONDITION_NOTE_LIMIT}
             placeholder="한 줄 메모 (선택)"
+            aria-label="컨디션 메모"
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
           />

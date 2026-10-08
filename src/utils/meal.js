@@ -27,6 +27,9 @@ export function applyTagToggle(currentTags, id, forceAdd = false) {
   const exists = currentTags.includes(id);
   if (exists && !forceAdd) return currentTags.filter((tid) => tid !== id);
   let next = currentTags;
+  const discomfort = ['bloat', 'heartburn', 'stomachache'];
+  if (id === 'comfortable') next = next.filter((tid) => !discomfort.includes(tid));
+  if (discomfort.includes(id)) next = next.filter((tid) => tid !== 'comfortable');
   if (tag.exclusiveGroup) {
     next = next.filter((tid) => tagById(tid)?.exclusiveGroup !== tag.exclusiveGroup);
   }
@@ -37,6 +40,11 @@ export function normalizeTags(tags) {
   return tags.reduce((acc, id) => applyTagToggle(acc, id, true), []);
 }
 
+export function tagsForSlot(tags = [], slot) {
+  const allowed = visibleTagsForSlot(slot, DEFAULT_TAGS.map((t) => t.id)).map((t) => t.id);
+  return normalizeTags(tags.filter((id) => allowed.includes(id)));
+}
+
 export function slotIsTaken(meals, slot, exceptId = null, date = todayKey()) {
   if (isRepeatableSlot(slot)) return false;
   return meals.some((m) => m.date === date && m.slot === slot && m.id !== exceptId);
@@ -44,7 +52,7 @@ export function slotIsTaken(meals, slot, exceptId = null, date = todayKey()) {
 
 export function migrateSpeed(speed) {
   if (speed === '10분 이내') return '20분 이내';
-  if (speed === '20-30분') return '30-50분 이내';
+  if (speed === '20-30분' || speed === '30-50분 이내') return '20분 초과~1시간 미만';
   return speed;
 }
 
@@ -85,11 +93,9 @@ export function mealsForWeekOffset(meals, offset, dayStartHour = 0) {
   return meals.filter((m) => m.date >= start && m.date <= end);
 }
 
-export function recentMeals(meals, days) {
-  const start = new Date();
-  start.setDate(start.getDate() - (days - 1));
-  start.setHours(0, 0, 0, 0);
-  return meals.filter((m) => dateFromKey(m.date) >= start);
+export function recentMeals(meals, days, end = todayKey()) {
+  const start = addDays(end, -(days - 1));
+  return meals.filter((m) => m.date >= start && m.date <= end);
 }
 
 export function countTags(meals) {

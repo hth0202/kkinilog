@@ -10,6 +10,12 @@
     scrollbar-gutter: stable;
   }
 
+  @media (min-width: 465px) {
+    html {
+      background-color: theme('colors.surface.ui');
+    }
+  }
+
   body {
     margin: 0;
     width: 100%;
@@ -30,12 +36,31 @@
     touch-action: manipulation;
   }
 
+  button:focus-visible, input:focus-visible, textarea:focus-visible, [role="spinbutton"]:focus-visible {
+    outline: 2px solid #0d8050;
+    outline-offset: 2px;
+  }
+
   h1, h2, h3, p {
     margin: 0;
   }
 
   * {
     box-sizing: border-box;
+  }
+}
+
+@layer components {
+  .app-shell {
+    --app-width: 464px;
+    width: 100%;
+    max-width: var(--app-width);
+    margin-inline: auto;
+  }
+
+  .app-shell .fixed {
+    max-width: var(--app-width);
+    margin-inline: auto;
   }
 }
 
@@ -65,7 +90,10 @@
   color: #fff;
   font-size: 14px;
   font-weight: 600;
-  white-space: nowrap;
+  max-width: min(calc(100vw - 32px), calc(var(--app-width) - 32px));
+  width: max-content;
+  white-space: normal;
+  text-align: center;
   opacity: 0;
   transition: opacity 0.2s, transform 0.2s;
   pointer-events: none;

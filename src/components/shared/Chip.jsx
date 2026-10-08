@@ -16,6 +16,7 @@ export default function Chip({ tag, active = false, disabled = false, onClick })
   return (
     <button
       type="button"
+      aria-pressed={active}
       className={`${base} ${colorCls} cursor-pointer active:opacity-70`}
       onClick={onClick}
     >

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 import {
-  effectiveDateKey, addDays, formatDateKey, dateFromKey,
+  addDays, formatDateKey, dateFromKey,
   formatHomeDate, formatDateSubLabel, formatMonthLabel,
   addMonths, monthKeyFor, daysInMonth,
 } from '../../utils/date';
@@ -9,11 +9,10 @@ import {
 export default function DateNav() {
   const viewedDate = useAppStore((s) => s.viewedDate);
   const setViewedDate = useAppStore((s) => s.setViewedDate);
-  const dayStartHour = useAppStore((s) => s.appState?.conditionPromptHour ?? 0);
+  const today = useAppStore((s) => s.today);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(viewedDate.slice(0, 7));
 
-  const today = effectiveDateKey(dayStartHour);
   const isToday = viewedDate === today;
 
   function prev() { setViewedDate(addDays(viewedDate, -1)); }
@@ -45,6 +44,7 @@ export default function DateNav() {
               onClick={() => { setPickerMonth(today.slice(0, 7)); selectDate(today); }}
             >오늘</button>
             <button
+              aria-label="이전 달"
               className="w-8 h-8 grid place-items-center rounded-sm text-title font-bold text-muted"
               onClick={() => setPickerMonth(addMonths(pickerMonth, -1))}
             >‹</button>
@@ -52,6 +52,7 @@ export default function DateNav() {
               className="w-8 h-8 grid place-items-center rounded-sm text-title font-bold text-muted disabled:opacity-35"
               disabled={pickerMonth >= monthKeyFor(today)}
               onClick={() => setPickerMonth(addMonths(pickerMonth, 1))}
+              aria-label="다음 달"
             >›</button>
           </div>
         </div>
@@ -78,6 +79,8 @@ export default function DateNav() {
             return (
               <button
                 key={key}
+                aria-label={formatHomeDate(key)}
+                aria-pressed={key === viewedDate}
                 disabled={isFuture}
                 onClick={() => selectDate(key)}
                 className={`h-8 grid place-items-center rounded-sm text-caption font-[650] disabled:cursor-default ${textClass}`}
@@ -108,7 +111,7 @@ export default function DateNav() {
         <strong className="block text-body font-[750] leading-snug truncate max-w-full">
           {formatHomeDate(viewedDate)}
         </strong>
-        <span className="block text-caption text-muted whitespace-nowrap">{formatDateSubLabel(viewedDate)}</span>
+        <span className="block text-caption text-muted whitespace-nowrap">{formatDateSubLabel(viewedDate, today)}</span>
       </button>
 
       <button

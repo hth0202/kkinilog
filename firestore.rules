@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Firebase 콘솔 > Firestore > 규칙에 붙여넣어 배포한다.
+// 각 사용자는 자기 uid 문서와 그 아래 사진만 읽고 쓸 수 있다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // 사진 백업: 문서 하나에 사진 한 장(이진 데이터), 1MB 미만, WebP·JPEG만
+      match /photos/{photoId} {
+        allow read, delete: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.data is bytes
+          && request.resource.data.data.size() < 1000000
+          && request.resource.data.type in ['image/webp', 'image/jpeg'];
+      }
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

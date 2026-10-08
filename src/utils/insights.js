@@ -2,10 +2,11 @@ import { tagById } from './meal';
 import { josa } from './text';
 
 function computeTodaySignals(meals, counts) {
+  meals = meals.filter((m) => m.slot !== '음료');
   return {
     mealCount: meals.length,
     highCarbCount: meals.filter((m) => m.carbs === '많이').length,
-    lowCarbCount: meals.filter((m) => m.carbs === '없음' || m.carbs === '적게').length,
+    lowCarbCount: meals.filter((m) => m.carbs === '적게').length,
     bingeCount: meals.filter((m) => m.fullness === '배 터질 것 같음').length,
     highFullnessCount: meals.filter((m) => ['적당에서 약간 배부름', '배 터질 것 같음'].includes(m.fullness)).length,
     balancedCount: meals.filter((m) => m.fullness === '적당함').length,
@@ -31,8 +32,9 @@ function computeWeekSignals(meals, counts, streak) {
   return { ...computeTodaySignals(meals, counts), streak, lateCount: counts.late || 0 };
 }
 
-export function todayInsight(meals, counts) {
-  if (!meals.length) return '오늘 첫 끼니를 남겨봐요';
+export function todayInsight(meals, counts, dayCopy = '오늘') {
+  if (!meals.length) return dayCopy === '오늘' ? '오늘 첫 끼니를 남겨봐요' : '이날 기록이 없어요';
+  if (meals.every((m) => m.slot === '음료')) return `${dayCopy} 음료를 ${meals.length}번 기록했어요`;
   const s = computeTodaySignals(meals, counts);
 
   const candidates = [
@@ -67,10 +69,10 @@ export function todayInsight(meals, counts) {
       msg: '많이 먹은 끼니가 있었어요, 다음엔 한 박자 느리게요' },
     { score: 370 + s.deliveryCount * 20,
       cond: s.deliveryCount > 0 && s.deliveryCount === s.mealCount,
-      msg: '오늘 끼니를 모두 배달로 했어요, 내일은 집밥 어때요?' },
+      msg: '오늘 끼니를 모두 배달/외식으로 먹었어요, 다음엔 집밥 어때요?' },
     { score: 350 + s.deliveryCount * 20,
       cond: s.deliveryCount >= 2,
-      msg: '배달을 자주 했어요, 다음 끼니는 집밥 어때요?' },
+      msg: '배달/외식이 여러 번이었어요, 다음 끼니는 집밥 어때요?' },
     { score: 330 + s.sodiumCount * 20,
       cond: s.sodiumCount >= 2,
       msg: '짠 게 좀 많았네요, 물을 조금 더 마셔봐요' },
@@ -144,14 +146,13 @@ export function todayInsight(meals, counts) {
   ];
 
   const best = candidates.filter((c) => c.cond).sort((a, b) => b.score - a.score)[0];
-  return best?.msg ?? '먹고 나서 느낌을 메모에 남겨봐요';
+  return (best?.msg ?? '먹고 나서 느낌을 메모에 남겨봐요').replaceAll('오늘', dayCopy);
 }
 
-export function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
-  if (!weekMeals.length) {
-    if (monthMeals.length > 0) return '이번 주 기록을 시작해봐요, 작은 기록이 쌓이면 패턴이 보여요';
-    return '첫 끼니를 기록하면 이번 주 패턴을 같이 살펴볼게요';
-  }
+export function flowInsight(weekMeals, counts, streak = 0, period = '이번 주', trackedTags = null) {
+  const fallback = '아직 눈에 띄는 식습관 특징은 없어요';
+  weekMeals = weekMeals.filter((m) => m.slot !== '음료');
+  if (!weekMeals.length) return fallback;
 
   const s = computeWeekSignals(weekMeals, counts, streak);
 
@@ -184,10 +185,10 @@ export function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
     // 행동 경고 (300–500)
     { score: 500 + s.deliveryCount * 15,
       cond: s.deliveryCount >= 5,
-      msg: '이번 주 끼니 대부분이 배달이었어요, 집밥 한두 번만 챙겨봐요' },
+      msg: `이번 주 ${s.mealCount}끼 중 배달/외식이 ${s.deliveryCount}번이에요, 집밥도 챙겨봐요` },
     { score: 470 + s.deliveryCount * 15,
       cond: s.deliveryCount >= 3,
-      msg: `이번 주 배달이 ${s.deliveryCount}번이에요, 집밥이나 간단한 요리로 한두 번 바꿔볼까요` },
+      msg: `이번 주 배달/외식이 ${s.deliveryCount}번이에요, 집밥이나 간단한 요리로 한두 번 바꿔볼까요` },
     { score: 450 + s.sodiumCount * 15,
       cond: s.sodiumCount >= 4,
       msg: `짠 음식이 이번 주 ${s.sodiumCount}번이에요, 나트륨이 쌓이면 부기로 나타날 수 있어요` },
@@ -196,7 +197,7 @@ export function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
       msg: '짠 음식이 이번 주 두세 번 있었어요, 물을 조금 더 챙겨봐요' },
     { score: 400 + s.fastCount * 15,
       cond: s.fastCount >= 5,
-      msg: '이번 주 거의 매 끼니를 빠르게 먹었어요, 한 끼라도 천천히 먹어봐요' },
+      msg: `이번 주 ${s.mealCount}끼 중 ${s.fastCount}끼를 빠르게 먹었어요, 한 끼라도 천천히 먹어봐요` },
     { score: 370 + s.fastCount * 15,
       cond: s.fastCount >= 3,
       msg: `이번 주 ${s.fastCount}끼를 빠르게 먹었어요, 천천히 먹으면 포만감이 더 잘 느껴져요` },
@@ -209,10 +210,10 @@ export function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
     // 긍정 신호 (190–300)
     { score: 300 + s.vegCount + s.proteinCount,
       cond: s.vegCount >= 5 && s.proteinCount >= 4,
-      msg: '채소와 단백질을 이번 주 내내 꾸준히 챙겼어요' },
+      msg: `이번 주 채소를 ${s.vegCount}번, 단백질을 ${s.proteinCount}번 챙겼어요, 다음 주에도 함께 챙겨봐요` },
     { score: 280 + s.vegCount + s.proteinCount,
       cond: s.vegCount >= 4 && s.proteinCount >= 3,
-      msg: '채소와 단백질을 꾸준히 챙겼어요, 이번 주 균형이 좋아요' },
+      msg: `이번 주 채소를 ${s.vegCount}번, 단백질을 ${s.proteinCount}번 챙겼어요, 다음 주에도 함께 챙겨봐요` },
     { score: 260 + s.vegCount * 10,
       cond: s.vegCount >= 4,
       msg: `채소를 이번 주 ${s.vegCount}번 챙겼어요, 단백질도 같이 챙기면 더 좋아요` },
@@ -221,31 +222,27 @@ export function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
       msg: `단백질을 이번 주 ${s.proteinCount}번 챙겼어요, 채소도 한 끼라도 곁들여봐요` },
     { score: 230 + s.balancedCount * 10,
       cond: s.balancedCount >= 6,
-      msg: '포만감 조절이 아주 잘 됐어요, 다음 주에도 이 패턴 그대로 가봐요' },
+      msg: `포만감이 적당했던 끼니가 ${s.balancedCount}번이에요, 다음 주에도 먹고 난 느낌을 살펴봐요` },
     { score: 210 + s.balancedCount * 10,
       cond: s.balancedCount >= 4,
-      msg: `포만감이 적당했던 끼니가 ${s.balancedCount}번이에요, 식사 조절이 잘 되고 있어요` },
+      msg: `포만감이 적당했던 끼니가 ${s.balancedCount}번이에요, 다음 주에도 먹고 난 느낌을 살펴봐요` },
     { score: 190 + s.comfortableCount * 10,
       cond: s.comfortableCount >= 3,
       msg: `속이 편한 끼니가 이번 주 ${s.comfortableCount}번이에요, 어떤 끼니였는지 메모를 돌아봐요` },
-    // 기타 / 폴백 (130–180)
+    // 기타 신호
     { score: 170,
-      cond: s.vegCount === 0 && s.mealCount >= 5,
+      cond: s.vegCount === 0 && s.mealCount >= 5 && (!trackedTags || trackedTags.includes('veg')),
       msg: '이번 주 채소 기록이 없어요, 다음 주엔 한 끼라도 채소를 곁들여봐요' },
     ...watchTagCandidates,
-    { score: 150,
-      cond: monthMeals.length >= 25,
-      msg: `최근 한 달 ${monthMeals.length}번 기록했어요, 패턴이 아주 잘 보이고 있어요` },
-    { score: 130,
-      cond: monthMeals.length >= 15,
-      msg: `최근 한 달 ${monthMeals.length}번 기록했어요, 패턴이 잘 보이고 있어요` },
   ];
 
   const best = candidates.filter((c) => c.cond).sort((a, b) => b.score - a.score)[0];
-  return best?.msg ?? `이번 주 ${weekMeals.length}끼 기록했어요, 꾸준히 쌓아가고 있어요`;
+  const message = (best?.msg ?? fallback).replaceAll('이번 주', period);
+  return period === '이번 주' ? message : message.replaceAll('다음 주에도', '앞으로도').replaceAll('다음 주엔', '앞으로는').replaceAll('다음 주', '앞으로');
 }
 
-export function getWeekHighlights(weekMeals, counts, streak) {
+export function getWeekHighlights(weekMeals, counts, streak, period = '이번 주') {
+  weekMeals = weekMeals.filter((m) => m.slot !== '음료');
   const highlights = [];
   if ((counts.comfortable || 0) >= 4) highlights.push({ type: 'good', text: `속이 편한 끼니가 이번 주 ${counts.comfortable}번이에요` });
   if ((counts.protein || 0) >= 4) highlights.push({ type: 'good', text: `단백질을 이번 주 ${counts.protein}번 챙겼어요` });
@@ -256,7 +253,7 @@ export function getWeekHighlights(weekMeals, counts, streak) {
   if (balanced >= 5) highlights.push({ type: 'good', text: `포만감을 잘 조절한 끼니가 ${balanced}번이에요` });
 
   if ((counts.heartburn || 0) >= 3) highlights.push({ type: 'watch', text: `속쓰림이 이번 주 ${counts.heartburn}번이에요` });
-  if ((counts.delivery || 0) >= 4) highlights.push({ type: 'watch', text: `배달을 이번 주 ${counts.delivery}번 했어요` });
+  if ((counts.delivery || 0) >= 4) highlights.push({ type: 'watch', text: `배달/외식이 이번 주 ${counts.delivery}번이에요` });
 
   const fast = weekMeals.filter((m) => m.speed === '20분 이내').length;
   if (fast >= 4) highlights.push({ type: 'watch', text: `빠르게 먹은 끼니가 ${fast}번이에요` });
@@ -264,7 +261,7 @@ export function getWeekHighlights(weekMeals, counts, streak) {
   if ((counts.late || 0) >= 3) highlights.push({ type: 'watch', text: `야식이 이번 주 ${counts.late}번이에요` });
 
   if (!highlights.length && weekMeals.length >= 7) {
-    highlights.push({ type: 'good', text: `이번 주 ${weekMeals.length}끼 모두 기록했어요` });
+    highlights.push({ type: 'good', text: `이번 주 ${weekMeals.length}끼 기록했어요` });
   }
-  return highlights.slice(0, 4);
+  return highlights.slice(0, 4).map((h) => ({ ...h, text: h.text.replaceAll('이번 주', period) }));
 }

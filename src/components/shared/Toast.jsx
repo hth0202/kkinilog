@@ -16,7 +16,7 @@ export default function Toast() {
   if (!toast) return null;
 
   return (
-    <div className={`toast ${visible ? 'visible' : ''}`}>
+    <div role="status" className={`toast ${visible ? 'visible' : ''}`}>
       {toast}
     </div>
   );

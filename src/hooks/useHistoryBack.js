@@ -9,8 +9,9 @@ export function useHistoryBack(onClose) {
   useEffect(() => {
     closedByPopRef.current = false;
     const fn = () => {
-      closedByPopRef.current = true;
-      onCloseRef.current();
+      const closed = onCloseRef.current();
+      closedByPopRef.current = closed !== false;
+      return closed;
     };
     pushOverlay(fn);
     return () => removeOverlay(fn, closedByPopRef.current);

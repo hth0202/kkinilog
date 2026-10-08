@@ -55,11 +55,9 @@ export function formatMonthLabel(monthKey) {
   );
 }
 
-export function formatHistoryDate(dateKey) {
+export function formatHistoryDate(dateKey, today = todayKey()) {
   const date = dateFromKey(dateKey);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diff = Math.round((today - date) / 86400000);
+  const diff = Math.round((dateFromKey(today) - date) / 86400000);
   if (diff === 0) return '오늘';
   if (diff === 1) return '어제';
   return new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' }).format(date);
@@ -136,8 +134,8 @@ export function formatDateLabel(dateKey) {
   return formatHomeDate(dateKey);
 }
 
-export function formatDateSubLabel(dateKey) {
-  return isToday(dateKey) ? '오늘' : '지난 기록';
+export function formatDateSubLabel(dateKey, today = todayKey()) {
+  return dateKey === today ? '오늘' : '지난 기록';
 }
 
 export function parseTime(t) {
@@ -149,9 +147,4 @@ export function formatTimeDisplay(t) {
   if (!t) return '';
   const { period, hour, minute } = parseTime(t);
   return `${period} ${hour}:${String(minute).padStart(2, '0')}`;
-}
-
-export function kstHour() {
-  const kstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-  return kstNow.getHours();
 }

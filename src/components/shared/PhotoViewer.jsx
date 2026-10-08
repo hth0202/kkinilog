@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { useHistoryBack } from '../../hooks/useHistoryBack';
+import { useDialog } from '../../hooks/useDialog';
 
 export default function PhotoViewer() {
   const photoViewer = useAppStore((s) => s.photoViewer);
@@ -12,12 +13,13 @@ export default function PhotoViewer() {
   }, [photoViewer]);
 
   useHistoryBack(closePhotoViewer);
+  const dialogRef = useDialog(closePhotoViewer);
 
   if (!photoViewer) return null;
   const { photos } = photoViewer;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-ink flex flex-col">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="사진 보기" tabIndex={-1} className="fixed inset-0 z-[100] bg-ink flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 safe-top">
         <button
@@ -39,11 +41,15 @@ export default function PhotoViewer() {
 
       {/* Image */}
       <div className="flex-1 flex items-center justify-center px-2 overflow-hidden">
-        <img
-          src={photos[idx]}
-          alt={`사진 ${idx + 1}`}
-          className="max-w-full max-h-full object-contain rounded-lg"
-        />
+        {photos[idx] ? (
+          <img
+            src={photos[idx]}
+            alt={`사진 ${idx + 1}`}
+            className="max-w-full max-h-full object-contain rounded-lg"
+          />
+        ) : (
+          <span className="text-white/70 text-caption">사진을 불러올 수 없어요</span>
+        )}
       </div>
 
       {/* Nav */}
@@ -52,6 +58,7 @@ export default function PhotoViewer() {
           <button
             onClick={() => setIdx((i) => Math.max(0, i - 1))}
             disabled={idx === 0}
+            aria-label="이전 사진"
             className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 text-white disabled:opacity-30"
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -61,6 +68,7 @@ export default function PhotoViewer() {
           <button
             onClick={() => setIdx((i) => Math.min(photos.length - 1, i + 1))}
             disabled={idx === photos.length - 1}
+            aria-label="다음 사진"
             className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 text-white disabled:opacity-30"
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

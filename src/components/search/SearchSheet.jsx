@@ -3,6 +3,8 @@ import { useAppStore } from '../../store/appStore';
 import { dateFromKey } from '../../utils/date';
 import MealCard from '../home/MealCard';
 import { useHistoryBack } from '../../hooks/useHistoryBack';
+import { useDialog } from '../../hooks/useDialog';
+import { tagById } from '../../utils/meal';
 
 function formatSearchDate(dateKey) {
   const date = dateFromKey(dateKey);
@@ -19,19 +21,17 @@ export default function SearchSheet({ onClose }) {
   const inputRef = useRef(null);
 
   useHistoryBack(onClose);
+  const dialogRef = useDialog(onClose);
 
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
     inputRef.current?.focus();
-    return () => { document.body.style.overflow = ''; };
   }, []);
 
   const results = useMemo(() => {
     const q = query.trim();
     if (!q) return [];
-    const filtered = meals.filter((m) =>
-      String(m.title ?? '').toLowerCase().includes(q.toLowerCase())
-    );
+    const filtered = meals.filter((m) => [m.title, m.slot, m.memo, ...m.tags.map((id) => tagById(id)?.label)]
+      .some((text) => String(text ?? '').toLowerCase().includes(q.toLowerCase())));
     return filtered.sort((a, b) => {
       const cmp = a.date < b.date ? -1 : a.date > b.date ? 1 : (a.createdAt ?? 0) - (b.createdAt ?? 0);
       return sortOrder === 'newest' ? -cmp : cmp;
@@ -50,7 +50,7 @@ export default function SearchSheet({ onClose }) {
   const hasQuery = query.trim().length > 0;
 
   return (
-    <div className="fixed inset-0 z-40 bg-bg flex flex-col">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="기록 검색" tabIndex={-1} className="fixed inset-0 z-40 bg-bg flex flex-col">
       {/* Search bar */}
       <div className="flex items-center gap-2 px-4 safe-top pt-3 pb-2 border-b border-line/40">
         <button className="w-10 h-10 grid place-items-center text-muted flex-shrink-0" onClick={onClose} aria-label="닫기">
@@ -64,13 +64,14 @@ export default function SearchSheet({ onClose }) {
           </svg>
           <input
             ref={inputRef}
-            className="flex-1 bg-transparent text-body text-ink placeholder:text-soft outline-none"
-            placeholder="끼니 이름 검색"
+            className="flex-1 min-w-0 bg-transparent text-body text-ink placeholder:text-soft outline-none"
+            placeholder="기록 검색"
+            aria-label="먹은 것, 끼니, 태그, 메모 검색"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           {hasQuery && (
-            <button className="text-soft" onClick={() => setQuery('')} aria-label="지우기">
+            <button className="w-8 h-8 flex-shrink-0 grid place-items-center text-soft" onClick={() => setQuery('')} aria-label="지우기">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
@@ -87,6 +88,7 @@ export default function SearchSheet({ onClose }) {
             {['newest', 'oldest'].map((order) => (
               <button
                 key={order}
+                aria-pressed={sortOrder === order}
                 className={`text-caption font-semibold px-3 py-1 rounded-full transition-colors ${sortOrder === order ? 'bg-primary text-bg' : 'bg-surface-ui text-muted'}`}
                 onClick={() => setSortOrder(order)}
               >
@@ -103,7 +105,7 @@ export default function SearchSheet({ onClose }) {
           <p className="text-caption text-muted text-center mt-16">검색 결과가 없어요</p>
         )}
         {!hasQuery && (
-          <p className="text-caption text-muted text-center mt-16">끼니 이름을 입력해봐요</p>
+          <p className="text-caption text-muted text-center mt-16">먹은 것, 끼니, 태그, 메모로 찾아봐요</p>
         )}
         {grouped.map(([dateKey, dayMeals]) => (
           <div key={dateKey} className="mb-5">

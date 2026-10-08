@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { mealsForDate, countTags, tagById, recommendedSlot, availableSlot } from '../../utils/meal';
-import { effectiveDateKey, addDays } from '../../utils/date';
+import { addDays } from '../../utils/date';
 import DateNav from './DateNav';
 import MealCard from './MealCard';
 import ConditionBar from './ConditionBar';
@@ -28,8 +28,7 @@ export default function HomeTab() {
   const viewedDate = useAppStore((s) => s.viewedDate);
   const setViewedDate = useAppStore((s) => s.setViewedDate);
   const openEditor = useAppStore((s) => s.openEditor);
-  const dayStartHour = useAppStore((s) => s.appState?.conditionPromptHour ?? 0);
-  const effectiveToday = effectiveDateKey(dayStartHour);
+  const effectiveToday = useAppStore((s) => s.today);
 
   const touchStart = useRef(null);
 
